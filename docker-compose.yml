@@ -1,0 +1,67 @@
+version: "3"
+services:
+  redis_db:
+    container_name: redis
+    image: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - monitoring-redis
+  metricbeat:
+    container_name: metricbeat
+    user: root
+    image: diabloguardian/metricbeat-4-redis:latest
+    environment:
+            REDIS_HOSTS: redis_db:6379
+    volumes:
+      #The commented sections below enable Metricbeat to monitor the Docker host rather than the Metricbeat container. These are used by the system module.
+      - /proc:/hostfs/proc:ro
+      - /sys/fs/cgroup:/hostfs/sys/fs/cgroup:ro
+      #Allows us to report on docker from the hosts information.
+      - /var/run/docker.sock:/var/run/docker.sock
+      #We mount the host filesystem so we can report on disk usage with the system module.
+      - /:/hostfs:ro
+    command: metricbeat -e -system.hostfs=/hostfs -strict.perms=false
+    networks:
+      - monitoring-redis
+    depends_on: ["redis_db","elasticsearch"]
+  elasticsearch:
+    container_name: elasticsearch
+    image: docker.io/elasticsearch:6.7.2
+    environment:
+            discovery.type: single-node
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    ports:
+      - 9200:9200
+    networks:
+      - monitoring-redis
+    healthcheck:
+      test: ["CMD", "curl","-s" ,"-f", "http://localhost:9200/_cat/health"]
+
+  kibana:
+    container_name: kibana
+    hostname: kibana
+    image: docker.io/kibana:6.7.2
+    #volumes:
+    #  - ./kibana.yml:/usr/share/kibana/kibana.yml
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    ports: ['5601:5601']
+    networks: ['monitoring-redis']
+    depends_on: ["elasticsearch"]
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "curl", "-s", "-f", "http://localhost:5601/"]
+      retries: 6
+
+volumes:
+  esdata:
+    driver: local
+
+networks:
+  monitoring-redis:
