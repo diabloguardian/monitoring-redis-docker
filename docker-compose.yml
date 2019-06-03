@@ -13,6 +13,7 @@ services:
     image: diabloguardian/metricbeat-4-redis:latest
     environment:
             REDIS_HOSTS: redis_db:6379
+            ELASTICSEARCH_HOSTS: elasticsearch:9200
     volumes:
       #The commented sections below enable Metricbeat to monitor the Docker host rather than the Metricbeat container. These are used by the system module.
       - /proc:/hostfs/proc:ro
